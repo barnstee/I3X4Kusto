@@ -48,6 +48,37 @@ namespace I3X4Kusto
             }
         }
 
+        public Dictionary<string, object> ADXQueryForSpecificValue(string stationName, string productionLineName, string valueToQuery, double desiredValue)
+        {
+            string query = "opcua_metadata_lkv\r\n"
+                         + "| where Name contains \"" + stationName + "\"\r\n"
+                         + "| where Name contains \"" + productionLineName + "\"\r\n"
+                         + "| join kind = inner(opcua_telemetry\r\n"
+                         + "    | where Name == \"" + valueToQuery + "\"\r\n"
+                         + "    | where Timestamp > now(- 1h)\r\n"
+                         + ") on DataSetWriterID\r\n"
+                         + "| distinct Timestamp, OPCUANodeValue = todouble(Value)\r\n"
+                         + "| sort by Timestamp desc";
+
+            return RunQuery(query);
+        }
+
+        public Dictionary<string, object> ADXQueryForSpecificTime(string stationName, string productionLineName, string valueToQuery, string timeToQuery, int idealCycleTime)
+        {
+            string query = "opcua_metadata_lkv\r\n"
+                         + "| where Name contains \"" + stationName + "\"\r\n"
+                         + "| where Name contains \"" + productionLineName + "\"\r\n"
+                         + "| join kind = inner(opcua_telemetry\r\n"
+                         + "    | where Name == \"" + valueToQuery + "\"\r\n"
+                         + "    | where Timestamp > now(- 1h)\r\n"
+                         + ") on DataSetWriterID\r\n"
+                         + "| distinct Timestamp, OPCUANodeValue = todouble(Value)\r\n"
+                         + "| where around(Timestamp, datetime(" + timeToQuery + "), " + idealCycleTime.ToString() + "s)\r\n"
+                         + "| sort by Timestamp desc";
+
+            return RunQuery(query);
+        }
+
         public Dictionary<string, object> RunQuery(string query)
         {
             bool allowMultiRow = false;
