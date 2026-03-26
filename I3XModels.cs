@@ -5,30 +5,36 @@
     using System.Text.Json.Serialization;
 
     public sealed record I3xNamespace(
-        [property: JsonPropertyName("elementId")] string ElementId,
-        [property: JsonPropertyName("name")] string Name,
-        [property: JsonPropertyName("description")] string Description = null);
+        [property: JsonPropertyName("uri")] string Uri,
+        [property: JsonPropertyName("displayName")] string DisplayName);
 
     public sealed record I3xObjectType(
         [property: JsonPropertyName("elementId")] string ElementId,
-        [property: JsonPropertyName("name")] string Name,
-        [property: JsonPropertyName("namespaceElementId")] string NamespaceElementId);
+        [property: JsonPropertyName("displayName")] string DisplayName,
+        [property: JsonPropertyName("namespaceUri")] string NamespaceUri,
+        [property: JsonPropertyName("schema")] Dictionary<string, object> Schema);
 
     public sealed record I3xRelationshipType(
         [property: JsonPropertyName("elementId")] string ElementId,
-        [property: JsonPropertyName("name")] string Name);
+        [property: JsonPropertyName("displayName")] string DisplayName,
+        [property: JsonPropertyName("namespaceUri")] string NamespaceUri,
+        [property: JsonPropertyName("reverseOf")] string ReverseOf);
 
     public sealed record I3xObject(
         [property: JsonPropertyName("elementId")] string ElementId,
-        [property: JsonPropertyName("objectTypeElementId")] string ObjectTypeElementId,
-        [property: JsonPropertyName("name")] string Name,
-        [property: JsonPropertyName("attributes")] Dictionary<string, object> Attributes);
+        [property: JsonPropertyName("displayName")] string DisplayName,
+        [property: JsonPropertyName("typeId")] string TypeId,
+        [property: JsonPropertyName("isComposition")] bool IsComposition,
+        [property: JsonPropertyName("namespaceUri")] string NamespaceUri,
+        [property: JsonPropertyName("parentId")] string ParentId = null,
+        [property: JsonPropertyName("relationships")] Dictionary<string, object> Relationships = null);
 
     public sealed record ElementIdQuery(
         [property: JsonPropertyName("elementIds")] string[] ElementIds);
 
-    public sealed record ListObjectsRequest(
-        [property: JsonPropertyName("top")] int Top);
+    public sealed record GetObjectsRequest(
+        [property: JsonPropertyName("elementIds")] string[] ElementIds,
+        [property: JsonPropertyName("includeMetadata")] bool IncludeMetadata = false);
 
     public sealed record GetRelatedObjectsRequest(
         [property: JsonPropertyName("elementIds")] string[] ElementIds,
@@ -36,12 +42,14 @@
         [property: JsonPropertyName("includeMetadata")] bool IncludeMetadata = false);
 
     public sealed record I3xValueQueryRequest(
-        [property: JsonPropertyName("elementIds")] string[] ElementIds);
+        [property: JsonPropertyName("elementIds")] string[] ElementIds,
+        [property: JsonPropertyName("maxDepth")] int MaxDepth = 1);
 
     public sealed record I3xHistoryQueryRequest(
         [property: JsonPropertyName("elementIds")] string[] ElementIds,
-        [property: JsonPropertyName("startTime")] DateTimeOffset StartTime,
-        [property: JsonPropertyName("endTime")] DateTimeOffset EndTime);
+        [property: JsonPropertyName("startTime")] string StartTime = null,
+        [property: JsonPropertyName("endTime")] string EndTime = null,
+        [property: JsonPropertyName("maxDepth")] int MaxDepth = 1);
 
     public sealed record I3xValueResult(
         [property: JsonPropertyName("elementId")] string ElementId,

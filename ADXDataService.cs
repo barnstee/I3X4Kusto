@@ -1,5 +1,4 @@
-﻿
-using Azure.Identity;
+﻿using Azure.Identity;
 using Kusto.Data;
 using Kusto.Data.Common;
 using Kusto.Data.Net.Client;
@@ -7,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
+using System.Linq;
 
 namespace I3X4Kusto
 {
@@ -27,7 +27,7 @@ namespace I3X4Kusto
                 if (string.IsNullOrEmpty(aadAppID))
                 {
                     connectionString = new KustoConnectionStringBuilder(adxClusterName, adxDBName)
-                        .WithAadAzureTokenCredentialsAuthentication(new DefaultAzureCredential());
+                        .WithAadAzureTokenCredentialsAuthentication(new DefaultAzureCredential(new DefaultAzureCredentialOptions() { TenantId = Environment.GetEnvironmentVariable("AZURE_TENANT_ID") }));
                 }
                 else
                 {
@@ -48,41 +48,21 @@ namespace I3X4Kusto
             }
         }
 
-        public Dictionary<string, object> ADXQueryForSpecificValue(string stationName, string productionLineName, string valueToQuery, double desiredValue)
+        /// <summary>
+        /// Escapes and quotes an array of values for use in a KQL <c>in()</c> operator.
+        /// </summary>
+        public static string ToKqlStringList(string[] values)
         {
-            string query = "opcua_metadata_lkv\r\n"
-                         + "| where Name contains \"" + stationName + "\"\r\n"
-                         + "| where Name contains \"" + productionLineName + "\"\r\n"
-                         + "| join kind = inner(opcua_telemetry\r\n"
-                         + "    | where Name == \"" + valueToQuery + "\"\r\n"
-                         + "    | where Timestamp > now(- 1h)\r\n"
-                         + ") on DataSetWriterID\r\n"
-                         + "| distinct Timestamp, OPCUANodeValue = todouble(Value)\r\n"
-                         + "| sort by Timestamp desc";
-
-            return RunQuery(query);
+            return string.Join(", ", values.Select(v =>
+                "\"" + v.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\""));
         }
 
-        public Dictionary<string, object> ADXQueryForSpecificTime(string stationName, string productionLineName, string valueToQuery, string timeToQuery, int idealCycleTime)
+        /// <summary>
+        /// Executes a KQL query and returns every result row as a column-name → value dictionary.
+        /// </summary>
+        public List<Dictionary<string, object>> RunQueryRows(string query)
         {
-            string query = "opcua_metadata_lkv\r\n"
-                         + "| where Name contains \"" + stationName + "\"\r\n"
-                         + "| where Name contains \"" + productionLineName + "\"\r\n"
-                         + "| join kind = inner(opcua_telemetry\r\n"
-                         + "    | where Name == \"" + valueToQuery + "\"\r\n"
-                         + "    | where Timestamp > now(- 1h)\r\n"
-                         + ") on DataSetWriterID\r\n"
-                         + "| distinct Timestamp, OPCUANodeValue = todouble(Value)\r\n"
-                         + "| where around(Timestamp, datetime(" + timeToQuery + "), " + idealCycleTime.ToString() + "s)\r\n"
-                         + "| sort by Timestamp desc";
-
-            return RunQuery(query);
-        }
-
-        public Dictionary<string, object> RunQuery(string query)
-        {
-            bool allowMultiRow = false;
-            Dictionary<string, object> values = new();
+            var rows = new List<Dictionary<string, object>>();
 
             ClientRequestProperties clientRequestProperties = new ClientRequestProperties()
             {
@@ -97,43 +77,22 @@ namespace I3X4Kusto
                     {
                         while (reader.Read())
                         {
+                            var row = new Dictionary<string, object>();
                             for (int i = 0; i < reader.FieldCount; i++)
                             {
                                 try
                                 {
                                     if (reader.GetValue(i) != null)
                                     {
-                                        if (!allowMultiRow)
-                                        {
-                                            if (values.ContainsKey(reader.GetName(i)))
-                                            {
-                                                values[reader.GetName(i)] = reader.GetValue(i);
-                                            }
-                                            else
-                                            {
-                                                values.TryAdd(reader.GetName(i), reader.GetValue(i));
-                                            }
-                                        }
-                                        else
-                                        {
-                                            if (values.ContainsKey(reader.GetValue(i).ToString()))
-                                            {
-                                                values[reader.GetValue(i).ToString()] = reader.GetValue(i);
-                                            }
-                                            else
-                                            {
-                                                values.TryAdd(reader.GetValue(i).ToString(), reader.GetValue(i));
-                                            }
-                                        }
+                                        row[reader.GetName(i)] = reader.GetValue(i);
                                     }
                                 }
                                 catch (Exception ex)
                                 {
                                     Debug.WriteLine(ex.Message);
-
-                                    // ignore this field and move on
                                 }
                             }
+                            rows.Add(row);
                         }
                     }
                 }
@@ -143,7 +102,7 @@ namespace I3X4Kusto
                 Console.WriteLine("RunADXQuery: " + ex.Message);
             }
 
-            return values;
+            return rows;
         }
     }
 }

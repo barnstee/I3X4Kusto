@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace I3X4Kusto.Controllers
 {
@@ -16,6 +17,30 @@ namespace I3X4Kusto.Controllers
         }
 
         [HttpGet]
-        public ActionResult<IEnumerable<I3xNamespace>> GetNamespaces() => new List<I3xNamespace> { new I3xNamespace("test1", "test2", "test3") };
+        public ActionResult<IEnumerable<I3xNamespace>> GetNamespaces()
+        {
+            string query = "opcua_metadata_lkv\r\n"
+                         + "| distinct NamespaceUri";
+
+            var rows = _kusto.RunQueryRows(query);
+
+            var results = rows.Select(r => new I3xNamespace(
+                Str(r, "NamespaceUri"),
+                ExtractNameFromUri(Str(r, "NamespaceUri"))
+            )).ToList();
+
+            return Ok(results);
+        }
+
+        private static string ExtractNameFromUri(string uri)
+        {
+            if (string.IsNullOrEmpty(uri)) return "";
+            var trimmed = uri.TrimEnd('/');
+            int lastSlash = trimmed.LastIndexOf('/');
+            return lastSlash >= 0 ? trimmed[(lastSlash + 1)..] : trimmed;
+        }
+
+        private static string Str(Dictionary<string, object> row, string key) =>
+            row.TryGetValue(key, out var v) ? v?.ToString() ?? "" : "";
     }
 }

@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
-using System.Text.Json.Serialization;
+using System.Linq;
 
 namespace I3X4Kusto.Controllers
 {
@@ -17,12 +17,47 @@ namespace I3X4Kusto.Controllers
         }
 
         [HttpGet]
-        public ActionResult<IEnumerable<I3xObjectType>> GetObjectTypes() => Ok(new List<I3xObjectType>() { new I3xObjectType("test1", "test2", "test3") });
+        public ActionResult<IEnumerable<I3xObjectType>> GetObjectTypes()
+        {
+            string query = "opcua_metadata_lkv\r\n"
+                         + "| distinct Type, NamespaceUri\r\n"
+                         + "| project Type, NamespaceUri";
+
+            var rows = _kusto.RunQueryRows(query);
+
+            var results = rows.Select(r => new I3xObjectType(
+                Str(r, "Type"),
+                Str(r, "Type"),
+                Str(r, "NamespaceUri"),
+                new Dictionary<string, object>()
+            )).ToList();
+
+            return Ok(results);
+        }
 
         [HttpPost("query")]
         public ActionResult<IEnumerable<I3xObjectType>> QueryByElementId([FromBody] ElementIdQuery query)
         {
-            return Ok(new List<I3xObjectType>() { new I3xObjectType("test1", "test2", "test3") });
+            string inClause = ADXDataService.ToKqlStringList(query.ElementIds);
+
+            string kql = "opcua_metadata_lkv\r\n"
+                       + "| where Type in (" + inClause + ")\r\n"
+                       + "| distinct Type, NamespaceUri\r\n"
+                       + "| project Type, NamespaceUri";
+
+            var rows = _kusto.RunQueryRows(kql);
+
+            var results = rows.Select(r => new I3xObjectType(
+                Str(r, "Type"),
+                Str(r, "Type"),
+                Str(r, "NamespaceUri"),
+                new Dictionary<string, object>()
+            )).ToList();
+
+            return Ok(results);
         }
+
+        private static string Str(Dictionary<string, object> row, string key) =>
+            row.TryGetValue(key, out var v) ? v?.ToString() ?? "" : "";
     }
 }
